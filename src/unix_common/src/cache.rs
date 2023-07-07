@@ -5,9 +5,9 @@ use crate::config::{HimmelblauConfig, split_username};
 use tracing::{info, error};
 use serde::{Serialize, Deserialize};
 use serde_pickle::{to_writer, from_reader, SerOptions, DeOptions};
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions, create_dir_all};
 use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 use crate::constants::DEFAULT_CACHE_PATH;
 
 use rand::Rng;
@@ -130,6 +130,11 @@ impl HimmelblauCache {
     }
 
     pub fn store(&mut self) {
+        /* Create the cache directory */
+        let mut cache_dir = PathBuf::from(DEFAULT_CACHE_PATH);
+        cache_dir.pop(); // Remove the top element (the cache filename)
+        create_dir_all(cache_dir)
+            .expect("Failed creating the cache directory");
         /* Stash the cache to disk */
         let mut file = OpenOptions::new()
             .write(true)
