@@ -25,7 +25,7 @@ use himmelblau_unix_common::unix_proto::{ClientRequest, ClientResponse, NssUser,
 use himmelblau_unix_common::config::{HimmelblauConfig, split_username};
 use himmelblau_unix_common::cache::{HimmelblauCache, UserCacheEntry};
 use msal::authentication::{PublicClientApplication, REQUIRES_MFA, NO_CONSENT, NO_SECRET, NO_GROUP_CONSENT};
-use msal::misc::{request_user_groups, DirectoryObject, enroll_device};
+use msal::misc::{request_user_groups, DirectoryObject, enroll_device, list_policies, list_policy_settings};
 use futures::{SinkExt, StreamExt};
 
 use std::path::{Path};
@@ -144,6 +144,7 @@ async fn handle_client(
                 let mut scopes = vec![];
                 if app_id != DEFAULT_APP_ID {
                     scopes.push("GroupMember.Read.All");
+                    scopes.push("DeviceManagementConfiguration.Read.All");
                 }
                 let (mut token, mut err) = app.acquire_token_by_username_password(account_id.as_str(), cred.as_str(), scopes);
                 // We may have been denied GroupMember.Read.All, try again without it
@@ -180,6 +181,16 @@ async fn handle_client(
                                     },
                                 };
                                 cache.insert_user_groups(&config, domain, groups, &account_id);
+                                if app_id != DEFAULT_APP_ID {
+                                    let policies = list_policies(&graph, access_token).await.unwrap();
+                                    for entry in policies {
+                                        debug!("{}: {}", entry.name, entry.id);
+                                        let settings = list_policy_settings(&graph, access_token, &entry.id).await.unwrap();
+                                        for setting in settings {
+                                            debug!("    {}: {}", setting.id(), setting.value().unwrap());
+                                        }
+                                    }
+                                }
                             },
                             None => {
                                 warn!("Failed caching user {}", account_id);

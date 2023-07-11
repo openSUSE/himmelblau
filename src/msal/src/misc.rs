@@ -137,3 +137,93 @@ pub async fn enroll_device(graph_url: &str, access_token: &str) -> Result<Device
         Err(anyhow!(resp.status()))
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ConfigurationPolicy {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConfigurationPolicies {
+    value: Vec<ConfigurationPolicy>,
+}
+
+pub async fn list_policies(graph_url: &str, access_token: &str) -> Result<Vec<ConfigurationPolicy>> {
+    let url = &format!("{}/beta/deviceManagement/configurationPolicies?$select=name,id&$filter=platforms%20eq%20%27linux%27", graph_url);
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+        .send()
+        .await?;
+    if resp.status().is_success() {
+        Ok(resp.json::<ConfigurationPolicies>().await?.value)
+    } else {
+        Err(anyhow!(resp.status()))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SimpleSettingValue {
+    value: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChoiceSettingValue {
+    value: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SettingInstance {
+    #[serde(rename = "settingDefinitionId")]
+    id: String,
+    #[serde(rename = "simpleSettingValue", default)]
+    simple_value: Option<SimpleSettingValue>,
+    #[serde(rename = "choiceSettingValue", default)]
+    choice_value: Option<ChoiceSettingValue>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConfigurationPolicySetting {
+    #[serde(rename = "settingInstance")]
+    setting_instance: SettingInstance,
+}
+
+impl ConfigurationPolicySetting {
+    pub fn id(&self) -> String {
+        self.setting_instance.id.to_string()
+    }
+
+    pub fn value(&self) -> Option<String> {
+        match &self.setting_instance.simple_value {
+            Some(val) => Some(val.value.to_string()),
+            None => {
+                match &self.setting_instance.choice_value {
+                    Some(val) => Some(val.value.to_string()),
+                    None => None,
+                }
+            },
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConfigurationPoliciesSettings {
+    value: Vec<ConfigurationPolicySetting>
+}
+
+pub async fn list_policy_settings(graph_url: &str, access_token: &str, policy_id: &str) -> Result<Vec<ConfigurationPolicySetting>> {
+    let url = &format!("{}/Beta/deviceManagement/configurationPolicies('{}')/settings", graph_url, policy_id);
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+        .send()
+        .await?;
+    if resp.status().is_success() {
+        Ok(resp.json::<ConfigurationPoliciesSettings>().await?.value)
+    } else {
+        Err(anyhow!(resp.status()))
+    }
+}
